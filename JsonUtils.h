@@ -16,6 +16,10 @@
 #include <stack>
 #include <cassert>
 #include <iostream>
+#include <cmath> //for pow
+
+class CJsonDictNode;
+class CJsonListNode;
 
 class CJsonNode
 {
@@ -23,6 +27,71 @@ public:
 	virtual ~CJsonNode() {};
 	
 	virtual void ToString(std::string& OutString,int InLevel=0) = 0;
+
+	virtual bool IsBool()
+	{
+		return false;
+	}
+	virtual bool AsBool()
+	{
+		assert(false&&"this is not a bool node");
+		return false;
+	}
+
+	virtual bool IsInt()
+	{
+		return false;
+	}
+
+	virtual int AsInt()
+	{
+		assert(false && "this is not a int node");
+		return 0;
+	}
+
+	virtual bool IsDouble()
+	{
+		return false;
+	}
+
+	virtual double AsDouble()
+	{
+		assert(false && "this is not a double node");
+		return 0;
+	}
+
+	virtual bool IsString()
+	{
+		return false;
+	}
+
+	virtual std::string AsString()
+	{
+		assert(false && "this is not a string node");
+		return std::string();
+	}
+
+	virtual bool IsDict()
+	{
+		return false;
+	}
+
+	CJsonDictNode* AsDictNode()
+	{
+		assert(IsDict() && "this is not a dict node");
+		return reinterpret_cast<CJsonDictNode*>(this);
+	}
+
+	virtual bool IsList()
+	{
+		return false;
+	}
+
+	CJsonListNode* AsListNode()
+	{
+		assert(IsList() && "this is not a list node");
+		return reinterpret_cast<CJsonListNode*>(this);
+	}
 };
 
 
@@ -50,6 +119,49 @@ public:
 				assert(false && "unimplement !");
 			
 		}, Value);
+	}
+
+	virtual bool IsBool() override
+	{
+		return std::holds_alternative<bool>(Value);
+	}
+
+	virtual bool IsInt() override
+	{
+		return std::holds_alternative<int>(Value);
+	}
+
+	virtual bool IsDouble() override
+	{
+		return std::holds_alternative<double>(Value);
+	}
+
+	virtual bool IsString() override
+	{
+		return std::holds_alternative<std::string>(Value);
+	}
+	virtual bool AsBool() override
+	{
+		assert(IsBool() && "this is not a bool node");
+		return std::get<bool>(Value);
+	}
+
+	virtual int AsInt() override
+	{
+		assert(IsInt() && "this is not a int node");
+		return std::get<int>(Value);
+	}
+
+	virtual double AsDouble() override
+	{
+		assert(IsDouble() && "this is not a double node");
+		return std::get<double>(Value);
+	}
+
+	virtual std::string AsString() override
+	{
+		assert(IsString() && "this is not a string node");
+		return std::get<std::string>(Value);
 	}
 };
 
@@ -97,6 +209,11 @@ public:
 		OutString += "}";
 	}
 
+	virtual bool IsDict() override
+	{
+		return true;
+	}
+
 };
 
 class CJsonListNode :public CJsonNode
@@ -131,6 +248,10 @@ public:
 		OutString += "]";
 	}
 
+	virtual bool IsList()
+	{
+		return true;
+	}
 };
 
 
@@ -333,11 +454,11 @@ private:
 
 				return std::make_unique<CJsonSingleNode>(Value);
 			}
-			else if (IsA('.') || IsNumber())
+			else if (IsA('.') || IsNumber() || IsA('-'))
 			{
 				std::string NumerInString;
 				bool IsInt = true;
-				while (IsA('.') || IsNumber())
+				while (IsA('.') || IsNumber() || IsA('-'))
 				{
 					if (IsA('.'))
 					{
@@ -346,15 +467,28 @@ private:
 					NumerInString += Json[CharIndex];
 					ConsumeCharacter();
 				}
+				
+				double Multiple = 1;
+				if (IsA('e') || IsA('E'))
+				{
+					ConsumeCharacter();
 
+					std::string Exponent;
+					while (IsNumber() || IsA('-'))
+					{
+						Exponent += Json[CharIndex];
+						ConsumeCharacter();
+					}	 
+					Multiple=std::powf(10, (float)std::stoi(Exponent));
+				}
 
 				if (IsInt)
 				{
-					return std::make_unique<CJsonSingleNode>(std::stoi(NumerInString));
+					return std::make_unique<CJsonSingleNode>(int(std::stoi(NumerInString) * Multiple));
 				}
 				else
 				{
-					return std::make_unique<CJsonSingleNode>(std::stod(NumerInString));
+					return std::make_unique<CJsonSingleNode>(std::stod(NumerInString)* Multiple);
 				}
 			}
 			else if (IsA('['))
